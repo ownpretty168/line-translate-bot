@@ -1,4 +1,5 @@
 import os
+import re
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from linebot.v3 import WebhookParser
@@ -8,12 +9,11 @@ from linebot.v3.messaging import (
     ReplyMessageRequest, TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from langdetect import detect
 
 LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 DEEPL_KEY = os.getenv("DEEPL_API_KEY")
-TARGET_LANGS = os.getenv("TARGET_LANGUAGES", "ZH,JA").split(",")
+TARGET_LANGS = os.getenv("TARGET_LANGUAGES", "ZH-HANT,JA").split(",")
 
 app = FastAPI()
 configuration = Configuration(access_token=LINE_TOKEN)
@@ -34,10 +34,11 @@ async def translate_text(text: str, target_lang: str) -> str:
         result = resp.json()
         return result["translations"][0]["text"]
 
-LANG_MAP = {
-    "zh": "ZH-HANT", "zh-tw": "ZH-HANT", "zh-cn": "ZH-HANT",
-    "en": "EN", "ja": "JA", "ko": "KO"
-}
+def detect_source_lang(text: str) -> str:
+    # 只要文字中出現平假名或片假名，就判定為日文
+    if re.search(r'[\u3040-\u30ff]', text):
+        return "JA"
+    return "ZH-HANT"
 
 @app.post("/callback")
 async def callback(request: Request):
@@ -59,15 +60,11 @@ async def callback(request: Request):
                 if original_text.startswith("/") or not original_text.strip():
                     continue
 
-                try:
-                    detected = detect(original_text)
-                except Exception:
-                    detected = "unknown"
-
-                source_code = LANG_MAP.get(detected, None)
+                source_code = detect_source_lang(original_text)
 
                 reply_lines = []
                 for lang in TARGET_LANGS:
+                    lang = lang.strip()
                     if source_code == lang:
                         continue
                     try:
