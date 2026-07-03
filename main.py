@@ -13,14 +13,7 @@ from langdetect import detect
 LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 DEEPL_KEY = os.getenv("DEEPL_API_KEY")
-TARGET_LANGS = os.getenv("TARGET_LANGUAGES", "EN,JA,ZH").split(",")
-
-print("=== 環境變數檢查 ===")
-print("LINE_TOKEN 是否存在:", bool(LINE_TOKEN))
-print("LINE_SECRET 是否存在:", bool(LINE_SECRET))
-print("DEEPL_KEY 是否存在:", bool(DEEPL_KEY))
-print("TARGET_LANGS:", TARGET_LANGS)
-print("===================")
+TARGET_LANGS = os.getenv("TARGET_LANGUAGES", "ZH,JA").split(",")
 
 app = FastAPI()
 configuration = Configuration(access_token=LINE_TOKEN)
@@ -28,13 +21,15 @@ parser = WebhookParser(LINE_SECRET)
 
 async def translate_text(text: str, target_lang: str) -> str:
     url = "https://api-free.deepl.com/v2/translate"
-    params = {
-        "auth_key": DEEPL_KEY,
+    headers = {
+        "Authorization": f"DeepL-Auth-Key {DEEPL_KEY}"
+    }
+    data = {
         "text": text,
         "target_lang": target_lang
     }
     async with httpx.AsyncClient() as client:
-        resp = await client.post(url, data=params)
+        resp = await client.post(url, data=data, headers=headers)
         resp.raise_for_status()
         result = resp.json()
         return result["translations"][0]["text"]
@@ -75,8 +70,12 @@ async def callback(request: Request):
                 for lang in TARGET_LANGS:
                     if source_code == lang:
                         continue
-                    translated = await translate_text(original_text, lang)
-                    reply_lines.append(f"[{lang}] {translated}")
+                    try:
+                        translated = await translate_text(original_text, lang)
+                        reply_lines.append(f"[{lang}] {translated}")
+                    except Exception as e:
+                        print(f"翻譯 {lang} 失敗: {e}")
+                        continue
 
                 if reply_lines:
                     reply_text = "\n".join(reply_lines)
