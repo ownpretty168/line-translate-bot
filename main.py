@@ -35,7 +35,7 @@ async def translate_text(text: str, target_lang: str) -> str:
         return result["translations"][0]["text"]
 
 LANG_MAP = {
-    "zh": "ZH", "zh-tw": "ZH", "zh-cn": "ZH",
+    "zh": "ZH-HANT", "zh-tw": "ZH-HANT", "zh-cn": "ZH-HANT",
     "en": "EN", "ja": "JA", "ko": "KO"
 }
 
