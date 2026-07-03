@@ -15,6 +15,13 @@ LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 DEEPL_KEY = os.getenv("DEEPL_API_KEY")
 TARGET_LANGS = os.getenv("TARGET_LANGUAGES", "EN,JA,ZH").split(",")
 
+print("=== 環境變數檢查 ===")
+print("LINE_TOKEN 是否存在:", bool(LINE_TOKEN))
+print("LINE_SECRET 是否存在:", bool(LINE_SECRET))
+print("DEEPL_KEY 是否存在:", bool(DEEPL_KEY))
+print("TARGET_LANGS:", TARGET_LANGS)
+print("===================")
+
 app = FastAPI()
 configuration = Configuration(access_token=LINE_TOKEN)
 parser = WebhookParser(LINE_SECRET)
