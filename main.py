@@ -19,6 +19,9 @@ app = FastAPI()
 configuration = Configuration(access_token=LINE_TOKEN)
 parser = WebhookParser(LINE_SECRET)
 
+# 用來判斷整句話「是不是就是一個網址」
+URL_PATTERN = re.compile(r'^https?://\S+$')
+
 async def translate_text(text: str, target_lang: str) -> str:
     url = "https://api-free.deepl.com/v2/translate"
     headers = {
@@ -35,7 +38,6 @@ async def translate_text(text: str, target_lang: str) -> str:
         return result["translations"][0]["text"]
 
 def detect_source_lang(text: str) -> str:
-    # 只要文字中出現平假名或片假名，就判定為日文
     if re.search(r'[\u3040-\u30ff]', text):
         return "JA"
     return "ZH-HANT"
@@ -55,20 +57,33 @@ async def callback(request: Request):
 
         for event in events:
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
-                original_text = event.message.text
+                original_text = event.message.text.strip()
 
-                if original_text.startswith("/") or not original_text.strip():
+                if not original_text or original_text.startswith("/"):
+                    continue
+
+                # ✅ 防線 1：整句話就是一個純網址，直接跳過不回覆
+                if URL_PATTERN.match(original_text):
                     continue
 
                 source_code = detect_source_lang(original_text)
 
                 reply_lines = []
+                seen_texts = set()  # 用來記錄已經出現過的翻譯結果
+
                 for lang in TARGET_LANGS:
                     lang = lang.strip()
                     if source_code == lang:
                         continue
                     try:
                         translated = await translate_text(original_text, lang)
+
+                        # ✅ 防線 2：翻譯結果若跟已出現過的內容重複，就跳過
+                        normalized = translated.strip().lower()
+                        if normalized in seen_texts:
+                            continue
+                        seen_texts.add(normalized)
+
                         reply_lines.append(f"[{lang}] {translated}")
                     except Exception as e:
                         print(f"翻譯 {lang} 失敗: {e}")
